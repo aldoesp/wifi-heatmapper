@@ -55,7 +55,11 @@ function parseRecords(input: unknown): TermuxWifiScanRecord[] {
       return [];
     }
   }
-  return Array.isArray(value) ? (value as TermuxWifiScanRecord[]) : [];
+  if (Array.isArray(value)) return value as TermuxWifiScanRecord[];
+  if (value && typeof value === "object") {
+    return [value as TermuxWifiScanRecord];
+  }
+  return [];
 }
 
 export function parseTermuxWifiScanInfo(input: unknown): WifiResults[] {

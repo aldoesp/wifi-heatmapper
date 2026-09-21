@@ -64,3 +64,25 @@ test("ignores records without a BSSID or numeric RSSI", () => {
 
   expect(results).toEqual([]);
 });
+
+test("parses the single object returned by termux-wifi-connectioninfo", () => {
+  const [current] = parseTermuxWifiScanInfo({
+    ssid: "ZMTL_GUEST",
+    bssid: "9a:30:66:74:50:83",
+    rssi: -46,
+    frequency_mhz: 5200,
+    channel_bandwidth_mhz: "80",
+    center_frequency_mhz: 5210,
+    capabilities: "[WPA2-PSK-CCMP][RSN-PSK+SAE-CCMP][ESS]",
+  });
+
+  expect(current).toMatchObject({
+    ssid: "ZMTL_GUEST",
+    bssid: "9a3066745083",
+    rssi: -46,
+    channel: 40,
+    band: 5,
+    frequencyMhz: 5200,
+    centerFrequencyMhz: 5210,
+  });
+});
