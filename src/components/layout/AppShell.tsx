@@ -2,7 +2,14 @@
 
 import * as Tabs from "@radix-ui/react-tabs";
 import { useCallback, useEffect, useState } from "react";
-import { FlaskConical, Github } from "lucide-react";
+import {
+  FlaskConical,
+  Github,
+  ListChecks,
+  Map,
+  ScanLine,
+  Settings2,
+} from "lucide-react";
 
 import { useSettings } from "@/components/GlobalSettings";
 import { useAppStatus } from "@/hooks/useAppStatus";
@@ -15,13 +22,19 @@ import SettingsEditor from "@/components/SettingsEditor";
 import ClickableFloorplan from "@/components/Floorplan";
 import { Heatmaps } from "@/components/Heatmaps";
 import PointsTable from "@/components/PointsTable";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const TABS = [
-  { id: "settings", label: "Settings" },
-  { id: "floorplan", label: "Floor plan" },
-  { id: "heatmaps", label: "Heat maps" },
-  { id: "points", label: "Survey points" },
+  { id: "settings", label: "Settings", mobileLabel: "Setup", icon: Settings2 },
+  { id: "floorplan", label: "Floor plan", mobileLabel: "Scan", icon: ScanLine },
+  { id: "heatmaps", label: "Heat maps", mobileLabel: "Map", icon: Map },
+  {
+    id: "points",
+    label: "Survey points",
+    mobileLabel: "Points",
+    icon: ListChecks,
+  },
 ] as const;
 export type TabId = (typeof TABS)[number]["id"];
 
@@ -60,14 +73,14 @@ export default function AppShell() {
     <Tabs.Root
       value={tab}
       onValueChange={(v) => isTabId(v) && setTab(v)}
-      className="flex min-h-screen flex-col"
+      className="flex min-h-[100dvh] flex-col pb-16 sm:pb-0"
     >
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-6 px-4 sm:h-14 sm:flex-nowrap sm:px-6">
           <a
             href="#settings"
             onClick={() => setTab("settings")}
-            className="order-1 flex h-14 shrink-0 items-center gap-2 rounded-md text-[15px] font-semibold tracking-tight"
+            className="order-1 flex h-14 min-h-11 shrink-0 items-center gap-2 rounded-md text-[15px] font-semibold tracking-tight"
           >
             <BrandMark className="h-6 w-6" />
             <span>Wi-Fi Heatmapper</span>
@@ -75,7 +88,7 @@ export default function AppShell() {
 
           <Tabs.List
             aria-label="Sections"
-            className="order-3 -mx-4 flex h-11 basis-full items-stretch gap-1 overflow-x-auto px-3 sm:order-2 sm:mx-0 sm:h-14 sm:basis-auto sm:px-0"
+            className="order-3 -mx-4 hidden h-11 basis-full items-stretch gap-1 overflow-x-auto px-3 sm:order-2 sm:mx-0 sm:flex sm:h-14 sm:basis-auto sm:px-0"
           >
             {TABS.map((t) => (
               <Tabs.Trigger
@@ -127,10 +140,47 @@ export default function AppShell() {
         </div>
       </header>
 
-      <SurveySummary onNavigate={setTab} />
+      {tab === "settings" && (
+        <div className="mx-auto w-full max-w-[1440px] px-4 pt-4 sm:hidden sm:px-6 sm:pt-6">
+          <div className="rounded-2xl border border-brand/25 bg-brand-soft/60 p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand text-brand-foreground">
+                <ScanLine className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-base font-semibold">
+                  Ready to map your Wi-Fi?
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  Open your floor plan, then tap where you are standing to
+                  capture a signal reading.
+                </p>
+              </div>
+            </div>
+            <Button
+              className="mt-4 h-11 w-full rounded-xl"
+              variant="brand"
+              onClick={() => setTab("floorplan")}
+              data-testid="mobile-start-scan"
+            >
+              <ScanLine className="h-4 w-4" />
+              Start a scan
+            </Button>
+          </div>
+        </div>
+      )}
 
-      <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6">
-        <WelcomePanel />
+      <div className="hidden sm:block">
+        <SurveySummary onNavigate={setTab} />
+      </div>
+
+      <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 sm:px-6 sm:py-6">
+        <div className="sm:hidden">
+          <SurveySummary onNavigate={setTab} />
+        </div>
+        <div className="hidden sm:block">
+          <WelcomePanel />
+        </div>
         <Tabs.Content value="settings" className="outline-none">
           <SettingsEditor />
         </Tabs.Content>
@@ -148,6 +198,31 @@ export default function AppShell() {
           />
         </Tabs.Content>
       </main>
+
+      <Tabs.List
+        aria-label="Mobile sections"
+        className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t bg-surface/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_hsl(var(--foreground)/0.06)] backdrop-blur sm:hidden"
+      >
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <Tabs.Trigger
+              key={`mobile-${t.id}`}
+              value={t.id}
+              data-testid={`mobile-tab-${t.id}`}
+              className="relative flex min-h-11 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-muted-foreground transition-colors data-[state=active]:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <Icon className="h-5 w-5" />
+              <span>{t.mobileLabel}</span>
+              {t.id === "points" && settings.surveyPoints.length > 0 && (
+                <span className="absolute right-5 top-2 rounded-full bg-brand px-1.5 text-[10px] text-brand-foreground">
+                  {settings.surveyPoints.length}
+                </span>
+              )}
+            </Tabs.Trigger>
+          );
+        })}
+      </Tabs.List>
     </Tabs.Root>
   );
 }
