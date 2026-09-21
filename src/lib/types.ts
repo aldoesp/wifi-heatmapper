@@ -21,6 +21,8 @@ export interface WifiResults {
   txRate: number;
   phyMode: string;
   channelWidth: number;
+  frequencyMhz?: number;
+  centerFrequencyMhz?: number;
   band: number; // frequency band - 2.4 or 5 (GHz)
   currentSSID: boolean; // true if this is the SSID currently in use
   strongestSSID: WifiResults | null;

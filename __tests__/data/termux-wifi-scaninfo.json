@@ -1,0 +1,80 @@
+[
+  {
+    "bssid": "9a:30:66:74:50:83",
+    "frequency_mhz": 5200,
+    "rssi": -44,
+    "ssid": "ZMTL_GUEST",
+    "timestamp": 269931022473,
+    "channel_bandwidth_mhz": "80",
+    "center_frequency_mhz": 5210,
+    "capabilities": "[WPA2-PSK-CCMP][RSN-PSK+SAE-CCMP][ESS][WFA-HT][WFA-VHT][WFA-HE-READY]"
+  },
+  {
+    "bssid": "8c:30:66:74:50:83",
+    "frequency_mhz": 5200,
+    "rssi": -45,
+    "ssid": "WF_ZOMATEL",
+    "timestamp": 269927303733,
+    "channel_bandwidth_mhz": "80",
+    "center_frequency_mhz": 5210,
+    "capabilities": "[ESS][WFA-HT][WFA-VHT][WFA-HE-READY]"
+  },
+  {
+    "bssid": "2a:0b:8b:0c:cb:5f",
+    "frequency_mhz": 2412,
+    "rssi": -79,
+    "ssid": "ZMTL_GUEST",
+    "timestamp": 269926092584,
+    "channel_bandwidth_mhz": "20",
+    "capabilities": "[WPA2-PSK-CCMP][RSN-PSK+SAE-CCMP][ESS][WFA-HT]"
+  },
+  {
+    "bssid": "1c:0b:8b:0c:cb:5f",
+    "frequency_mhz": 2412,
+    "rssi": -80,
+    "ssid": "WF_ZOMATEL",
+    "timestamp": 269926076872,
+    "channel_bandwidth_mhz": "20",
+    "capabilities": "[ESS][WFA-HT]"
+  },
+  {
+    "bssid": "1c:0b:8b:0c:cb:60",
+    "frequency_mhz": 5640,
+    "rssi": -84,
+    "ssid": "WF_ZOMATEL",
+    "timestamp": 269929735523,
+    "channel_bandwidth_mhz": "80",
+    "center_frequency_mhz": 5610,
+    "capabilities": "[ESS][WFA-HT][WFA-VHT][WFA-HE-READY]"
+  },
+  {
+    "bssid": "26:0b:8b:0c:cb:60",
+    "frequency_mhz": 5640,
+    "rssi": -84,
+    "ssid": "",
+    "timestamp": 269929736424,
+    "channel_bandwidth_mhz": "80",
+    "center_frequency_mhz": 5610,
+    "capabilities": "[WPA2-PSK-CCMP][RSN-PSK-CCMP][ESS][WFA-HT][WFA-VHT][WFA-HE-READY]"
+  },
+  {
+    "bssid": "22:0b:8b:0c:cb:60",
+    "frequency_mhz": 5640,
+    "rssi": -85,
+    "ssid": "ZMTL_BOX",
+    "timestamp": 269929736065,
+    "channel_bandwidth_mhz": "80",
+    "center_frequency_mhz": 5610,
+    "capabilities": "[WPA2-PSK-CCMP][RSN-PSK+SAE-CCMP][ESS][WFA-HT][WFA-VHT][WFA-HE-READY]"
+  },
+  {
+    "bssid": "2a:0b:8b:0c:cb:60",
+    "frequency_mhz": 5640,
+    "rssi": -85,
+    "ssid": "ZMTL_GUEST",
+    "timestamp": 269929737702,
+    "channel_bandwidth_mhz": "80",
+    "center_frequency_mhz": 5610,
+    "capabilities": "[WPA2-PSK-CCMP][RSN-PSK+SAE-CCMP][ESS][WFA-HT][WFA-VHT][WFA-HE-READY]"
+  }
+]

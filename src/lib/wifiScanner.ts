@@ -6,6 +6,7 @@ import { getLogger } from "./logger";
 import { MacOSWifiActions } from "./wifiScanner-macos";
 import { WindowsWifiActions } from "./wifiScanner-windows";
 import { LinuxWifiActions } from "./wifiScanner-linux";
+import { TermuxWifiActions } from "./wifiScanner-termux";
 import { MockWifiActions } from "./wifiScanner-mock";
 import { isMockMode } from "./app-info";
 /**
@@ -15,6 +16,12 @@ import { isMockMode } from "./app-info";
  */
 
 const logger = getLogger("wifiScanner");
+
+function isTermuxEnvironment(): boolean {
+  return Boolean(
+    process.env.TERMUX_VERSION || process.env.PREFIX?.includes("/com.termux/"),
+  );
+}
 
 export async function createWifiActions(): Promise<WifiActions> {
   if (isMockMode()) {
@@ -28,6 +35,10 @@ export async function createWifiActions(): Promise<WifiActions> {
     case "win32":
       return new WindowsWifiActions();
     case "linux":
+      if (isTermuxEnvironment()) {
+        logger.info("Termux environment detected: using Termux Wi-Fi scanner");
+        return new TermuxWifiActions();
+      }
       return new LinuxWifiActions();
     default:
       throw new Error(`Unsupported platform: ${platform}`);
