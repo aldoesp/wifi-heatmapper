@@ -29,16 +29,16 @@ export async function createWifiActions(): Promise<WifiActions> {
     return new MockWifiActions();
   }
   const platform = os.platform();
+  if (platform === "android" || isTermuxEnvironment()) {
+    logger.info("Termux environment detected: using Termux Wi-Fi scanner");
+    return new TermuxWifiActions();
+  }
   switch (platform) {
     case "darwin":
       return new MacOSWifiActions();
     case "win32":
       return new WindowsWifiActions();
     case "linux":
-      if (isTermuxEnvironment()) {
-        logger.info("Termux environment detected: using Termux Wi-Fi scanner");
-        return new TermuxWifiActions();
-      }
       return new LinuxWifiActions();
     default:
       throw new Error(`Unsupported platform: ${platform}`);
