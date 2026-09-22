@@ -6,7 +6,13 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { FlaskConical, MousePointerClick } from "lucide-react";
+import {
+  FlaskConical,
+  Maximize2,
+  Minus,
+  MousePointerClick,
+  Plus,
+} from "lucide-react";
 
 import { useSettings } from "./GlobalSettings";
 import { useAppStatus } from "@/hooks/useAppStatus";
@@ -57,8 +63,20 @@ export default function ClickableFloorplan() {
   const [imageError, setImageError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [baseScale, setBaseScale] = useState(1);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const gestureRef = useRef<{
+    startDistance: number;
+    startZoom: number;
+    last: { x: number; y: number };
+    moved: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
   const [hoveringPoint, setHoveringPoint] = useState(false);
+
+  const scale = baseScale * zoom;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedPoint = useMemo(
@@ -105,12 +123,44 @@ export default function ClickableFloorplan() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !image) return;
-    const update = () => setScale(el.clientWidth / image.naturalWidth);
+    const update = () => {
+      setBaseScale(el.clientWidth / image.naturalWidth);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, [image]);
+
+  const clampPan = useCallback(
+    (next: { x: number; y: number }) => {
+      const viewport = containerRef.current;
+      if (!viewport || !image) return next;
+      const width = image.naturalWidth * scale;
+      const height = image.naturalHeight * scale;
+      return {
+        x: Math.min(0, Math.max(viewport.clientWidth - width, next.x)),
+        y: Math.min(0, Math.max(viewport.clientHeight - height, next.y)),
+      };
+    },
+    [image, scale],
+  );
+
+  const changeZoom = useCallback(
+    (nextZoom: number) => {
+      const value = Math.min(4, Math.max(1, nextZoom));
+      setZoom(value);
+      setPan((current) => clampPan(current));
+    },
+    [clampPan],
+  );
+
+  const resetView = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
 
   /* ---------- drawing ---------- */
 
@@ -287,6 +337,10 @@ export default function ClickableFloorplan() {
   /* ---------- interaction ---------- */
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     if (!image) return;
     const pt = toImageCoords(e);
     const hit = hitTest(pt);
@@ -302,6 +356,63 @@ export default function ClickableFloorplan() {
     setMeasureError(null);
     setPending(pt);
     setPanelOpen(true);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pointers = [...pointersRef.current.values()];
+    if (pointers.length === 1) {
+      gestureRef.current = {
+        startDistance: 0,
+        startZoom: zoom,
+        last: pointers[0],
+        moved: false,
+      };
+    } else if (pointers.length === 2) {
+      const [first, second] = pointers;
+      gestureRef.current = {
+        startDistance: Math.hypot(second.x - first.x, second.y - first.y),
+        startZoom: zoom,
+        last: second,
+        moved: true,
+      };
+      suppressClickRef.current = true;
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pointers = [...pointersRef.current.values()];
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+
+    if (pointers.length >= 2) {
+      const [first, second] = pointers;
+      const distance = Math.hypot(second.x - first.x, second.y - first.y);
+      if (gesture.startDistance > 0) {
+        changeZoom(gesture.startZoom * (distance / gesture.startDistance));
+        gesture.moved = true;
+      }
+      return;
+    }
+
+    if (zoom <= 1) return;
+    const current = pointers[0];
+    const dx = current.x - gesture.last.x;
+    const dy = current.y - gesture.last.y;
+    if (Math.abs(dx) + Math.abs(dy) > 2) gesture.moved = true;
+    if (gesture.moved) {
+      suppressClickRef.current = true;
+      setPan((value) => clampPan({ x: value.x + dx, y: value.y + dy }));
+    }
+    gesture.last = current;
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size === 0) gestureRef.current = null;
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -367,8 +478,8 @@ export default function ClickableFloorplan() {
     if (!selectedPoint || !containerRef.current) return {};
     const cw = containerRef.current.clientWidth;
     const ch = containerRef.current.clientHeight;
-    const px = selectedPoint.x * scale;
-    const py = selectedPoint.y * scale;
+    const px = selectedPoint.x * scale + pan.x;
+    const py = selectedPoint.y * scale + pan.y;
     const POPUP_W = 288; // w-72
     const GAP = 14;
     const flipX = px + GAP + POPUP_W > cw;
@@ -377,7 +488,7 @@ export default function ClickableFloorplan() {
       left: flipX ? px - GAP - POPUP_W : px + GAP,
       top,
     };
-  }, [selectedPoint, scale]);
+  }, [pan, selectedPoint, scale]);
 
   /* ---------- render ---------- */
 
@@ -427,7 +538,17 @@ export default function ClickableFloorplan() {
           </div>
         )}
 
-        <div ref={containerRef} className="relative">
+        <div
+          ref={containerRef}
+          className="relative overflow-hidden rounded-md bg-white touch-none"
+          style={
+            image
+              ? {
+                  aspectRatio: `${image.naturalWidth} / ${image.naturalHeight}`,
+                }
+              : undefined
+          }
+        >
           {!image && !imageError && (
             <div className="flex aspect-[2/1] items-center justify-center text-sm text-muted-foreground">
               {loading ? "Loading survey" : "Loading floor plan"}
@@ -437,9 +558,13 @@ export default function ClickableFloorplan() {
             ref={canvasRef}
             onClick={handleCanvasClick}
             onMouseMove={handleMouseMove}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
             data-testid="floorplan-canvas"
             className={cn(
-              "block w-full rounded-md bg-white shadow-sm",
+              "absolute left-0 top-0 block max-w-none rounded-md bg-white shadow-sm",
               !image && "hidden",
               hoveringPoint
                 ? "cursor-pointer"
@@ -447,13 +572,69 @@ export default function ClickableFloorplan() {
                   ? "cursor-progress"
                   : "cursor-crosshair",
             )}
+            style={
+              image
+                ? {
+                    width: image.naturalWidth * scale,
+                    height: image.naturalHeight * scale,
+                    left: pan.x,
+                    top: pan.y,
+                  }
+                : undefined
+            }
           />
+
+          {image && (
+            <div className="absolute right-3 top-3 z-30 flex overflow-hidden rounded-xl border bg-popover/95 shadow-float">
+              <button
+                type="button"
+                aria-label="Zoom in"
+                title="Zoom in"
+                onClick={() => changeZoom(zoom + 0.5)}
+                className="flex h-11 w-11 items-center justify-center text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Reset zoom"
+                title="Reset zoom"
+                onClick={resetView}
+                className="flex h-11 w-11 items-center justify-center border-x text-xs font-semibold tabular text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                type="button"
+                aria-label="Zoom out"
+                title="Zoom out"
+                onClick={() => changeZoom(zoom - 0.5)}
+                className="flex h-11 w-11 items-center justify-center text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Minus className="h-5 w-5" />
+              </button>
+              {zoom > 1 && (
+                <button
+                  type="button"
+                  aria-label="Recenter floor plan"
+                  title="Recenter floor plan"
+                  onClick={resetView}
+                  className="flex h-11 w-11 items-center justify-center border-l text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
 
           {pending && (
             <span
               aria-hidden="true"
               className="measuring-dot pointer-events-none absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-brand"
-              style={{ left: pending.x * scale, top: pending.y * scale }}
+              style={{
+                left: pending.x * scale + pan.x,
+                top: pending.y * scale + pan.y,
+              }}
             />
           )}
 
