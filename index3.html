@@ -1,0 +1,381 @@
+<!-- Interface 3 : Scan Wi-Fi (avec image ajustée) -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NetSpot - Scan Wi-Fi</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    html, body { height: 100%; }
+    body { background-color: #f8f9fa; color: #333; display: flex; flex-direction: column; overflow: hidden; }
+    
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; background: #fff; border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0; z-index: 20;
+    }
+    .header i { font-size: 20px; color: #555; cursor: pointer; width: 40px; text-align: left; }
+    .header h2 { font-size: 15px; font-weight: 600; flex-grow: 1; text-align: center; margin-right: 40px; }
+    .header .menu-btn { text-align: right; }
+    
+    .instructions {
+      padding: 10px 16px; font-size: 12px; color: #666; background: #fff;
+      border-bottom: 1px solid #eee; line-height: 1.4;
+      flex-shrink: 0; z-index: 20;
+    }
+    .instructions a { color: #007aff; text-decoration: none; }
+    
+    #map { 
+      flex: 1; 
+      width: 100%; 
+      background: #e0e0e0;
+      position: relative;
+    }
+    
+    .footer {
+      padding: 10px 16px 14px; background: #fff; border-top: 1px solid #e0e0e0;
+      display: flex; flex-direction: column; gap: 8px;
+      flex-shrink: 0; z-index: 20;
+    }
+    
+    .data-points {
+      text-align: center; font-size: 13px; color: #888; font-weight: 500;
+    }
+    
+    .button-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    
+    .btn {
+      padding: 12px 20px; border-radius: 30px; font-size: 14px; font-weight: 600;
+      border: none; cursor: pointer; transition: all 0.2s; min-height: 48px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      -webkit-appearance: none; appearance: none;
+    }
+    
+    .btn-outline {
+      background: #fff; color: #555; border: 1px solid #ccc;
+    }
+    .btn-outline:active { background: #f0f0f0; }
+    
+    .btn-scan {
+      flex: 1; background: #ff3b30; color: #fff; font-size: 15px;
+      box-shadow: 0 2px 8px rgba(255, 59, 48, 0.3);
+    }
+    .btn-scan:active { background: #cc2f26; transform: scale(0.98); }
+    
+    .btn-done {
+      background: #fff; color: #555; border: 1px solid #ccc;
+    }
+    .btn-done:active { background: #f0f0f0; }
+    
+    /* Marqueur principal (Wi-Fi) */
+    .custom-marker {
+      width: 40px; height: 40px; background: #ff3b30; border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg); display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3); position: relative;
+      border: 2px solid #fff;
+    }
+    .custom-marker i {
+      transform: rotate(45deg); color: #fff; font-size: 18px;
+    }
+    
+    /* Points de scan */
+    .scan-point {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #007aff; border: 3px solid #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    
+    @keyframes pulse {
+      0% { transform: rotate(-45deg) scale(1); opacity: 1; }
+      50% { transform: rotate(-45deg) scale(1.15); opacity: 0.8; }
+      100% { transform: rotate(-45deg) scale(1); opacity: 1; }
+    }
+    .pulse { animation: pulse 2s infinite; }
+    
+    /* Contrôle zoom mobile */
+    .leaflet-control-zoom {
+      border: none !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+      border-radius: 8px !important;
+      overflow: hidden;
+    }
+    .leaflet-control-zoom a {
+      width: 36px !important;
+      height: 36px !important;
+      line-height: 36px !important;
+      font-size: 18px !important;
+      color: #333 !important;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <i class="fas fa-times" onclick="window.location.href='index2.html'"></i>
+    <h2>Zone 1 • #1 Sep 18, 2026</h2>
+    <i class="fas fa-ellipsis-v menu-btn" onclick="showMenu()"></i>
+  </header>
+
+  <div class="instructions">
+    Place marker in the square matching your current location, tap "Scan". Get <a href="#">NetSpot Plus</a> to view heatmaps. Export survey data to desktops for free.
+  </div>
+
+  <div id="map"></div>
+
+  <footer class="footer">
+    <div class="data-points" id="dataPoints">0 data points</div>
+    <div class="button-row">
+      <button class="btn btn-outline" onclick="undoScan()">
+        <i class="fas fa-undo"></i> Undo
+      </button>
+      <button class="btn btn-scan" id="scanBtn" onclick="performScan()">
+        <i class="fas fa-wifi"></i> Scan
+      </button>
+      <button class="btn btn-done" onclick="finishScan()">
+        Done
+      </button>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const STORAGE_KEY = 'netspot_project';
+    let map, marker = null, markerLatLng = null;
+    let scanPoints = [];
+    let imageBounds = null;
+    let scanMarkers = [];
+
+    function initMap() {
+      map = L.map('map', {
+        crs: L.CRS.Simple,
+        minZoom: -5,
+        maxZoom: 5,
+        zoomControl: true,
+        attributionControl: false,
+        zoomSnap: 0.25,
+        zoomDelta: 0.5
+      });
+
+      const data = localStorage.getItem(STORAGE_KEY);
+      let imageUrl = null;
+
+      if (data) {
+        try {
+          const project = JSON.parse(data);
+          if (project.photo && project.photo.dataUrl) {
+            imageUrl = project.photo.dataUrl;
+          }
+        } catch (e) {
+          console.error('Erreur parsing localStorage:', e);
+        }
+      }
+
+      if (imageUrl) {
+        const img = new Image();
+        img.onload = () => {
+          const w = img.naturalWidth;
+          const h = img.naturalHeight;
+          imageBounds = [[0, 0], [h, w]];
+          
+          L.imageOverlay(imageUrl, imageBounds).addTo(map);
+          map.fitBounds(imageBounds, { padding: [10, 10] });
+          map.setMaxBounds(imageBounds);
+          map.setMinZoom(map.getBoundsZoom(imageBounds) - 1);
+          
+          loadScanPoints();
+          
+          if (!markerLatLng) {
+            markerLatLng = L.latLng(h / 2, w / 2);
+          }
+          placeMarker(markerLatLng);
+        };
+        img.onerror = () => {
+          console.error('Erreur chargement image, fallback SVG');
+          loadFallbackSVG();
+        };
+        img.src = imageUrl;
+      } else {
+        loadFallbackSVG();
+      }
+
+      map.on('click', (e) => {
+        markerLatLng = e.latlng;
+        placeMarker(markerLatLng);
+      });
+      
+      window.addEventListener('resize', () => {
+        setTimeout(() => map.invalidateSize(), 200);
+      });
+    }
+
+    function loadFallbackSVG() {
+      const bounds = [[0, 0], [600, 800]];
+      imageBounds = bounds;
+      
+      const svgContent = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+          <rect width="800" height="600" fill="#ffffff"/>
+          <g stroke="#d0d0d0" stroke-width="0.5" opacity="0.5">
+            ${Array.from({length: 20}, (_, i) => `<line x1="${i*40}" y1="0" x2="${i*40}" y2="600"/>`).join('')}
+            ${Array.from({length: 15}, (_, i) => `<line x1="0" y1="${i*40}" x2="800" y2="${i*40}"/>`).join('')}
+          </g>
+          <rect x="100" y="200" width="200" height="80" fill="none" stroke="#333" stroke-width="3"/>
+          <rect x="100" y="280" width="40" height="160" fill="none" stroke="#333" stroke-width="3"/>
+          <rect x="140" y="280" width="160" height="80" fill="none" stroke="#333" stroke-width="3"/>
+          <rect x="300" y="200" width="80" height="160" fill="none" stroke="#333" stroke-width="3"/>
+          <rect x="380" y="120" width="120" height="120" fill="none" stroke="#333" stroke-width="3"/>
+          <rect x="500" y="120" width="120" height="120" fill="none" stroke="#333" stroke-width="3"/>
+        </svg>
+      `;
+      
+      L.imageOverlay('data:image/svg+xml;base64,' + btoa(svgContent), bounds).addTo(map);
+      map.fitBounds(bounds, { padding: [10, 10] });
+      map.setMaxBounds(bounds);
+      map.setMinZoom(map.getBoundsZoom(bounds) - 1);
+      
+      loadScanPoints();
+      
+      if (!markerLatLng) {
+        markerLatLng = L.latLng(300, 400);
+      }
+      placeMarker(markerLatLng);
+    }
+
+    function placeMarker(latlng) {
+      if (marker) map.removeLayer(marker);
+      
+      marker = L.marker(latlng, {
+        icon: L.divIcon({
+          className: 'custom-marker pulse',
+          html: '<i class="fas fa-wifi"></i>',
+          iconSize: [40, 40],
+          iconAnchor: [20, 40]
+        }),
+        draggable: true
+      }).addTo(map);
+      
+      marker.on('dragend', (e) => {
+        markerLatLng = e.target.getLatLng();
+      });
+    }
+
+    function performScan() {
+      if (!markerLatLng) {
+        alert('Veuillez placer le marqueur sur la carte.');
+        return;
+      }
+
+      const btn = document.getElementById('scanBtn');
+      btn.style.transform = 'scale(0.9)';
+      setTimeout(() => btn.style.transform = 'scale(1)', 150);
+
+      const point = {
+        lat: markerLatLng.lat,
+        lng: markerLatLng.lng,
+        timestamp: Date.now()
+      };
+      
+      scanPoints.push(point);
+      saveScanPoints();
+      addScanMarker(point);
+      updateUI();
+      
+      console.log('Scan effectué:', point);
+    }
+
+    function addScanMarker(point) {
+      const m = L.marker([point.lat, point.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div class="scan-point"></div>',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        })
+      }).addTo(map);
+      
+      scanMarkers.push(m);
+    }
+
+    function undoScan() {
+      if (scanPoints.length === 0) {
+        alert('Aucun point à annuler.');
+        return;
+      }
+      
+      scanPoints.pop();
+      saveScanPoints();
+      
+      const lastMarker = scanMarkers.pop();
+      if (lastMarker) map.removeLayer(lastMarker);
+      
+      updateUI();
+      console.log('Scan annulé. Points restants:', scanPoints.length);
+    }
+
+    function updateUI() {
+      const count = scanPoints.length;
+      document.getElementById('dataPoints').textContent = 
+        `${count} data point${count > 1 ? 's' : ''}`;
+    }
+
+    function saveScanPoints() {
+      const data = localStorage.getItem(STORAGE_KEY);
+      const project = data ? JSON.parse(data) : {};
+      project.scanPoints = scanPoints;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    }
+
+    function loadScanPoints() {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (!data) return;
+      
+      try {
+        const project = JSON.parse(data);
+        if (project.scanPoints && Array.isArray(project.scanPoints)) {
+          scanPoints = project.scanPoints;
+          updateUI();
+          
+          scanPoints.forEach(point => {
+            addScanMarker(point);
+          });
+        }
+      } catch (e) {
+        console.error('Erreur chargement scanPoints:', e);
+      }
+    }
+
+    function finishScan() {
+      if (scanPoints.length === 0) {
+        alert('Aucun point scanné. Veuillez effectuer au moins un scan.');
+        return;
+      }
+      
+      saveScanPoints();
+      alert(`Scan terminé ! ${scanPoints.length} point(s) enregistré(s).`);
+    }
+
+    function showMenu() {
+      const choice = confirm(
+        'Menu options :\n\n' +
+        'OK = Exporter les données (console)\n' +
+        'Annuler = Fermer'
+      );
+      
+      if (choice) {
+        const data = localStorage.getItem(STORAGE_KEY);
+        console.log('=== DONNÉES DU PROJET ===');
+        console.log(JSON.parse(data));
+        alert('Données exportées dans la console (F12).');
+      }
+    }
+
+    window.addEventListener('load', initMap);
+  </script>
+
+</body>
+</html>

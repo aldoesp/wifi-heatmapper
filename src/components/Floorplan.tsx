@@ -7,11 +7,14 @@ import React, {
   useState,
 } from "react";
 import {
+  Check,
   FlaskConical,
   Maximize2,
   Minus,
   MousePointerClick,
   Plus,
+  ScanLine,
+  Undo2,
 } from "lucide-react";
 
 import { useSettings } from "./GlobalSettings";
@@ -88,7 +91,16 @@ export default function ClickableFloorplan() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [measureError, setMeasureError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const measuring = pending !== null;
+  const [isMobile, setIsMobile] = useState(false);
+  const measuring = pending !== null && panelOpen;
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   /* ---------- image ---------- */
 
@@ -355,7 +367,27 @@ export default function ClickableFloorplan() {
     if (measuring) return; // one at a time
     setMeasureError(null);
     setPending(pt);
+    if (!isMobile) setPanelOpen(true);
+  };
+
+  const beginMobileScan = () => {
+    if (!pending || measuring) return;
+    setMeasureError(null);
     setPanelOpen(true);
+  };
+
+  const undoLastPoint = () => {
+    if (measuring || points.length === 0) return;
+    const last = points.reduce((latest, point) =>
+      point.timestamp > latest.timestamp ? point : latest,
+    );
+    surveyPointActions.delete([last]);
+    setSelectedId(null);
+  };
+
+  const finishScan = () => {
+    if (measuring) return;
+    window.location.hash = "#heatmaps";
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -659,6 +691,42 @@ export default function ClickableFloorplan() {
           error={measureError}
         />
       )}
+
+      <div className="sticky bottom-20 z-30 -mx-1 flex items-center gap-2 rounded-2xl border bg-surface/95 p-2 shadow-float backdrop-blur sm:hidden">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 min-w-0 flex-1 rounded-xl px-3"
+          onClick={undoLastPoint}
+          disabled={measuring || points.length === 0}
+          data-testid="mobile-undo-scan"
+        >
+          <Undo2 className="h-4 w-4" />
+          Undo
+        </Button>
+        <Button
+          type="button"
+          variant="brand"
+          className="h-12 min-w-0 flex-[1.4] rounded-xl px-3"
+          onClick={beginMobileScan}
+          disabled={!pending || measuring}
+          data-testid="mobile-scan"
+        >
+          <ScanLine className="h-4 w-4" />
+          Scan
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 min-w-0 flex-1 rounded-xl px-3"
+          onClick={finishScan}
+          disabled={measuring}
+          data-testid="mobile-done-scan"
+        >
+          <Check className="h-4 w-4" />
+          Done
+        </Button>
+      </div>
     </div>
   );
 }
