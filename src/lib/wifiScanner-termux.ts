@@ -5,6 +5,8 @@ import {
   WifiScanResults,
 } from "./types";
 import { execAsync } from "./server-utils";
+import { GatewayPingResults } from "./types";
+import { measureGatewayPing } from "./wifiScanner-ping";
 import {
   bySignalStrength,
   channelToBand,
@@ -60,6 +62,33 @@ function parseRecords(input: unknown): TermuxWifiScanRecord[] {
     return [value as TermuxWifiScanRecord];
   }
   return [];
+}
+
+export function parseAndroidTxLinkSpeed(input: unknown): number | null {
+  let value = input;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object" || !("txLinkSpeedMbps" in value)) {
+    return null;
+  }
+  const speed = asNumber(value.txLinkSpeedMbps);
+  return speed !== null && speed > 0 ? speed : null;
+}
+
+async function readAndroidTxLinkSpeed(): Promise<number | null> {
+  try {
+    const response = await fetch("http://127.0.0.1:8765/tx-link-speed", {
+      signal: AbortSignal.timeout(500),
+    });
+    return response.ok ? parseAndroidTxLinkSpeed(await response.json()) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function parseTermuxWifiScanInfo(input: unknown): WifiResults[] {
@@ -143,9 +172,14 @@ export class TermuxWifiActions implements WifiActions {
       const [current] = parseTermuxWifiScanInfo(stdout);
       if (!current) return unsupported("No active Wi-Fi connection found.");
       current.currentSSID = true;
+      current.txRate = (await readAndroidTxLinkSpeed()) ?? current.txRate;
       return { SSIDs: [current], reason: "" };
     } catch (error) {
       return unsupported(`Cannot read the current Wi-Fi connection: ${error}`);
     }
+  }
+
+  async measureGateway(): Promise<GatewayPingResults> {
+    return measureGatewayPing("termux");
   }
 }

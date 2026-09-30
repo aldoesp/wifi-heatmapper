@@ -10,6 +10,7 @@ test("parses and normalizes Termux Wi-Fi scan results", () => {
   );
 
   const results = parseTermuxWifiScanInfo(fixture);
+  console.log("Parsed Termux Wi-Fi results:", JSON.stringify(results, null, 2));
 
   expect(results).toHaveLength(8);
   expect(results[0]).toMatchObject({

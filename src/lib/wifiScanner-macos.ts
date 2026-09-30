@@ -6,6 +6,8 @@ import {
   SPAirPortRoot,
 } from "./types";
 import { execAsync, delay } from "./server-utils";
+import { GatewayPingResults } from "./types";
+import { measureGatewayPing } from "./wifiScanner-ping";
 import {
   rssiToPercentage,
   isValidMacAddress,
@@ -253,6 +255,10 @@ export class MacOSWifiActions implements WifiActions {
       response.reason = `Can't getWifi: ${err}`;
     }
     return response;
+  }
+
+  async measureGateway(): Promise<GatewayPingResults> {
+    return measureGatewayPing("macos");
   }
 }
 /**

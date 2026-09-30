@@ -5,6 +5,8 @@ import {
   WifiActions,
 } from "./types";
 import { execAsync, delay } from "./server-utils";
+import { GatewayPingResults } from "./types";
+import { measureGatewayPing } from "./wifiScanner-ping";
 import {
   getDefaultWifiResults,
   isValidMacAddress,
@@ -190,6 +192,10 @@ export class WindowsWifiActions implements WifiActions {
     const parsed = parseNetshInterfaces(stdout);
     response.SSIDs.push(parsed);
     return response;
+  }
+
+  async measureGateway(): Promise<GatewayPingResults> {
+    return measureGatewayPing("windows");
   }
 }
 /**

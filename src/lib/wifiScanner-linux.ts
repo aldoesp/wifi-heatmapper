@@ -5,6 +5,8 @@ import {
   WifiActions,
 } from "./types";
 import { execAsync } from "./server-utils";
+import { GatewayPingResults } from "./types";
+import { measureGatewayPing } from "./wifiScanner-ping";
 import {
   channelToBand,
   getDefaultWifiResults,
@@ -227,6 +229,10 @@ export class LinuxWifiActions implements WifiActions {
       response.reason = String(err);
     }
     return response;
+  }
+
+  async measureGateway(): Promise<GatewayPingResults> {
+    return measureGatewayPing("linux");
   }
 }
 /**

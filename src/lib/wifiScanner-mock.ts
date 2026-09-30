@@ -9,6 +9,7 @@
  * like a real survey; throughput is derived from the signal strength.
  */
 import {
+  GatewayPingResults,
   IperfTestProperty,
   PartialHeatmapSettings,
   WifiActions,
@@ -123,6 +124,17 @@ export class MockWifiActions implements WifiActions {
     await delay(STEP_DELAY_MS);
     mockState.measurements++;
     return { SSIDs: [currentWifi(nextStrength())], reason: "" };
+  }
+
+  async measureGateway(): Promise<GatewayPingResults> {
+    await delay(STEP_DELAY_MS);
+    return {
+      gatewayIp: "192.168.1.1",
+      medianRttMs: 3.8,
+      packetLossPercent: 0,
+      probesSent: 5,
+      probesReceived: 5,
+    };
   }
 }
 
