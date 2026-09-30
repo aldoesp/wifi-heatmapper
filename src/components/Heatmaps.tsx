@@ -11,7 +11,7 @@ import {
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Network } from "lucide-react";
+import { ChevronDown, Network, Radio } from "lucide-react";
 import {
   SurveyPoint,
   testProperties,
@@ -20,7 +20,7 @@ import {
   IperfTestProperty,
 } from "@/lib/types";
 import { getColorAt, objectToRGBAString } from "@/lib/utils-gradient";
-import { cn, metricFormatter } from "@/lib/utils";
+import { cn, formatMacAddress, metricFormatter } from "@/lib/utils";
 import { getLogger } from "@/lib/logger";
 import createHeatmapWebGLRenderer from "@/app/webGL/renderers/mainRenderer";
 
@@ -77,6 +77,8 @@ type Rendered = { src: string | null; count: number };
 
 /** Value of the network picker: "" shows every survey point. */
 const ALL_NETWORKS = "";
+/** Value of the access point picker: "" shows every BSSID. */
+const ALL_ACCESS_POINTS = "";
 
 /** Group enabled points by SSID (empty SSIDs are bucketed under ""). */
 export const networkChoices = (
@@ -94,6 +96,25 @@ export const networkChoices = (
         Number(b.ssid === "") - Number(a.ssid === "") ||
         b.count - a.count ||
         a.ssid.localeCompare(b.ssid),
+    );
+};
+
+/** Group enabled points by BSSID (empty BSSIDs are bucketed under ""). */
+export const accessPointChoices = (
+  points: SurveyPoint[],
+): { bssid: string; count: number }[] => {
+  const counts = new Map<string, number>();
+  for (const p of points) {
+    const bssid = p.wifiData?.bssid ?? "";
+    counts.set(bssid, (counts.get(bssid) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([bssid, count]) => ({ bssid, count }))
+    .sort(
+      (a, b) =>
+        Number(b.bssid === "") - Number(a.bssid === "") ||
+        b.count - a.count ||
+        a.bssid.localeCompare(b.bssid),
     );
 };
 
@@ -119,17 +140,25 @@ export function Heatmaps() {
   >(["bitsPerSecond"]);
   const [asPercentage, setAsPercentage] = useState(true);
   const [network, setNetwork] = useState<string>(ALL_NETWORKS);
+  const [accessPoint, setAccessPoint] = useState<string>(ALL_ACCESS_POINTS);
 
   const networks = useMemo(
     () => networkChoices(points.filter((p) => p.isEnabled)),
     [points],
   );
+  const accessPoints = useMemo(
+    () => accessPointChoices(points.filter((p) => p.isEnabled)),
+    [points],
+  );
   const filteredPoints = useMemo(
     () =>
-      network === ALL_NETWORKS
-        ? points
-        : points.filter((p) => (p.wifiData?.ssid ?? "") === network),
-    [points, network],
+      points.filter(
+        (p) =>
+          (network === ALL_NETWORKS || (p.wifiData?.ssid ?? "") === network) &&
+          (accessPoint === ALL_ACCESS_POINTS ||
+            (p.wifiData?.bssid ?? "") === accessPoint),
+      ),
+    [points, network, accessPoint],
   );
   const enabledPoints = useMemo(
     () => filteredPoints.filter((p) => p.isEnabled),
@@ -138,6 +167,13 @@ export function Heatmaps() {
 
   const autoRadius = Math.round(calculateRadiusByBoundingBox(enabledPoints));
   const radius = settings.radiusDivider ?? autoRadius;
+
+  /** apMapping name for a BSSID, or "" when the AP is unnamed. */
+  const apLabel = useCallback(
+    (bssid: string) =>
+      settings.apMapping.find((ap) => ap.macAddress === bssid)?.apName ?? "",
+    [settings.apMapping],
+  );
 
   /* ---------- data ---------- */
 
@@ -514,6 +550,70 @@ export function Heatmaps() {
                 No points measured on this network.
               </p>
             )}
+          </div>
+
+          <div>
+            <h2 className="mb-1.5 text-sm font-medium">Access point</h2>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-between font-normal"
+                  data-testid="ap-filter"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Radio className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">
+                      {accessPoint === ALL_ACCESS_POINTS
+                        ? "All access points"
+                        : apLabel(accessPoint) || formatMacAddress(accessPoint)}
+                    </span>
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="max-h-[60vh] w-64 overflow-y-auto"
+              >
+                <DropdownMenuRadioGroup
+                  value={accessPoint}
+                  onValueChange={setAccessPoint}
+                >
+                  <DropdownMenuRadioItem
+                    value={ALL_ACCESS_POINTS}
+                    data-testid="ap-all"
+                  >
+                    All access points
+                  </DropdownMenuRadioItem>
+                  {accessPoints.map(({ bssid, count }) => (
+                    <DropdownMenuRadioItem
+                      key={bssid}
+                      value={bssid}
+                      data-testid={`ap-${bssid || "unknown"}`}
+                    >
+                      <span className="flex w-full items-baseline justify-between gap-3">
+                        <span className="truncate">
+                          {apLabel(bssid) ||
+                            formatMacAddress(bssid) ||
+                            "Unknown"}
+                        </span>
+                        <span className="tabular text-xs text-muted-foreground">
+                          {count}
+                        </span>
+                      </span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {accessPoint !== ALL_ACCESS_POINTS &&
+              enabledPoints.length === 0 && (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  No points measured through this access point.
+                </p>
+              )}
           </div>
 
           <div>
