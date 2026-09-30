@@ -179,6 +179,19 @@ export type ScannerSettings = {
   wlanInterfaceId: string | "";
 };
 
+/**
+ * GatewayPingResults - latency and loss measured by pinging the default
+ * gateway (see wifiScanner-ping.ts). Every field is null when unknown.
+ */
+export interface GatewayPingResults {
+  gatewayIp: string | null;
+  medianRttMs: number | null;
+  packetLossPercent: number | null;
+  probesSent: number;
+  probesReceived: number;
+  error?: string;
+}
+
 export type OS = "macos" | "windows" | "linux";
 
 export interface SurveyPointActions {

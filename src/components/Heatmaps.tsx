@@ -4,6 +4,15 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSettings } from "@/components/GlobalSettings";
 import { calculateRadiusByBoundingBox } from "@/lib/radiusCalculations";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { ChevronDown, Network } from "lucide-react";
+import {
   SurveyPoint,
   testProperties,
   MeasurementTestType,
@@ -66,6 +75,28 @@ const getAvailableProperties = (
 type HeatmapKey = string; // "signalStrength" or "<metric>-<property>"
 type Rendered = { src: string | null; count: number };
 
+/** Value of the network picker: "" shows every survey point. */
+const ALL_NETWORKS = "";
+
+/** Group enabled points by SSID (empty SSIDs are bucketed under ""). */
+export const networkChoices = (
+  points: SurveyPoint[],
+): { ssid: string; count: number }[] => {
+  const counts = new Map<string, number>();
+  for (const p of points) {
+    const ssid = p.wifiData?.ssid ?? "";
+    counts.set(ssid, (counts.get(ssid) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([ssid, count]) => ({ ssid, count }))
+    .sort(
+      (a, b) =>
+        Number(b.ssid === "") - Number(a.ssid === "") ||
+        b.count - a.count ||
+        a.ssid.localeCompare(b.ssid),
+    );
+};
+
 /**
  * Heatmaps - renders one heat map per selected metric/property
  * (WebGL inverse-distance weighting, see docs/Theory_of_Operation.md).
@@ -73,10 +104,6 @@ type Rendered = { src: string | null; count: number };
 export function Heatmaps() {
   const { settings, updateSettings } = useSettings();
   const points = settings.surveyPoints;
-  const enabledPoints = useMemo(
-    () => points.filter((p) => p.isEnabled),
-    [points],
-  );
 
   const [heatmaps, setHeatmaps] = useState<Record<HeatmapKey, Rendered>>({});
   const [rendering, setRendering] = useState(false);
@@ -91,6 +118,23 @@ export function Heatmaps() {
     (keyof IperfTestProperty)[]
   >(["bitsPerSecond"]);
   const [asPercentage, setAsPercentage] = useState(true);
+  const [network, setNetwork] = useState<string>(ALL_NETWORKS);
+
+  const networks = useMemo(
+    () => networkChoices(points.filter((p) => p.isEnabled)),
+    [points],
+  );
+  const filteredPoints = useMemo(
+    () =>
+      network === ALL_NETWORKS
+        ? points
+        : points.filter((p) => (p.wifiData?.ssid ?? "") === network),
+    [points, network],
+  );
+  const enabledPoints = useMemo(
+    () => filteredPoints.filter((p) => p.isEnabled),
+    [filteredPoints],
+  );
 
   const autoRadius = Math.round(calculateRadiusByBoundingBox(enabledPoints));
   const radius = settings.radiusDivider ?? autoRadius;
@@ -412,6 +456,67 @@ export function Heatmaps() {
       <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
         <aside className="space-y-6 lg:sticky lg:top-[7.5rem] lg:self-start">
           <div>
+            <h2 className="mb-1.5 text-sm font-medium">Network</h2>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-between font-normal"
+                  data-testid="network-filter"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Network className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">
+                      {network === ALL_NETWORKS
+                        ? "All networks"
+                        : network || "Hidden network"}
+                    </span>
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="max-h-[60vh] w-64 overflow-y-auto"
+              >
+                <DropdownMenuRadioGroup
+                  value={network}
+                  onValueChange={setNetwork}
+                >
+                  <DropdownMenuRadioItem
+                    value={ALL_NETWORKS}
+                    data-testid="network-all"
+                  >
+                    All networks
+                  </DropdownMenuRadioItem>
+                  {networks.map(({ ssid, count }) => (
+                    <DropdownMenuRadioItem
+                      key={ssid}
+                      value={ssid}
+                      data-testid={`network-${ssid || "hidden"}`}
+                    >
+                      <span className="flex w-full items-baseline justify-between gap-3">
+                        <span className="truncate">
+                          {ssid || "Hidden network"}
+                        </span>
+                        <span className="tabular text-xs text-muted-foreground">
+                          {count}
+                        </span>
+                      </span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {network !== ALL_NETWORKS && enabledPoints.length === 0 && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                No points measured on this network.
+              </p>
+            )}
+          </div>
+
+          <div>
             <h2 className="mb-1.5 text-sm font-medium">Show</h2>
             {Object.values(testTypes).map((metric) =>
               checkboxRow(
@@ -459,8 +564,8 @@ export function Heatmaps() {
           )}
 
           <p className="text-xs text-muted-foreground">
-            {enabledPoints.length} of {points.length} point
-            {points.length === 1 ? "" : "s"} used
+            {enabledPoints.length} of {filteredPoints.length} point
+            {filteredPoints.length === 1 ? "" : "s"} used
             {rendering ? ", rendering" : ""}
           </p>
         </aside>

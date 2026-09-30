@@ -9,13 +9,18 @@ const PROBE_COUNT = 5;
 function run(command: string, args: string[], timeout: number) {
   return new Promise<{ stdout: string; stderr: string; error: string | null }>(
     (resolve) => {
-      execFile(command, args, { timeout, encoding: "utf8" }, (error, stdout, stderr) => {
-        resolve({
-          stdout: String(stdout ?? ""),
-          stderr: String(stderr ?? ""),
-          error: error?.message ?? null,
-        });
-      });
+      execFile(
+        command,
+        args,
+        { timeout, encoding: "utf8" },
+        (error, stdout, stderr) => {
+          resolve({
+            stdout: String(stdout ?? ""),
+            stderr: String(stderr ?? ""),
+            error: error?.message ?? null,
+          });
+        },
+      );
     },
   );
 }
