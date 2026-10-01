@@ -105,6 +105,7 @@ export async function runSurveyTests(
   iperfData: IperfResults | null;
   wifiData: WifiResults | null;
   status: string;
+  networks?: WifiResults[];
 }> {
   // first check the settings and return a cogent error if not good
   const preResults = await wifiActions.preflightSettings(settings);
@@ -241,7 +242,14 @@ export async function runSurveyTests(
       rssi: percentageToRssi(strength), // set corresponding RSSI
     };
     logger.debug(`Measurement took ${Date.now() - startTime} ms`);
-    return { iperfData: newIperfData, wifiData: newWifiData, status: "" };
+    return {
+      iperfData: newIperfData,
+      wifiData: newWifiData,
+      status: "",
+      networks: [...ssids.SSIDs].sort(
+        (a, b) => b.signalStrength - a.signalStrength,
+      ),
+    };
   } catch (error: any) {
     if (error?.message == "cancelled") {
       logger.info("Measurement cancelled");

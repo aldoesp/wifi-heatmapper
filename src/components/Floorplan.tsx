@@ -95,6 +95,7 @@ export default function ClickableFloorplan() {
   const [measuredData, setMeasuredData] = useState<{
     wifiData: WifiResults;
     iperfData: IperfResults;
+    networks?: WifiResults[];
     x: number;
     y: number;
   } | null>(null);
@@ -333,6 +334,7 @@ export default function ClickableFloorplan() {
       setMeasuredData({
         wifiData: data.wifiData,
         iperfData: data.iperfData,
+        networks: data.networks,
         x,
         y,
       });
@@ -719,6 +721,7 @@ export default function ClickableFloorplan() {
           onCancel={cancelMeasurement}
           onConfirm={confirmMeasurement}
           result={measuredData}
+          networks={measuredData?.networks}
           apName={
             measuredData
               ? (settings.apMapping.find(

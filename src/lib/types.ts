@@ -162,6 +162,8 @@ export type SurveyPoint = {
 export interface SurveyResults {
   wifiData: WifiResults;
   iperfData: IperfResults;
+  /** Every network seen in the scan for this measurement, strongest first. */
+  networks?: WifiResults[];
 }
 
 /**
