@@ -140,6 +140,7 @@ export async function runSurveyTests(
     const ssids = await wifiActions.scanWifi(settings);
     logger.debug(`scanWifi returned: ${JSON.stringify(ssids)}`);
     const ssidName = ssids.SSIDs.find((item) => item.currentSSID)?.ssid ?? "";
+    let measurementWarning = "";
 
     const server = settings.iperfServerAdrs;
     const duration = settings.testDuration;
@@ -156,6 +157,7 @@ export async function runSurveyTests(
       if (resp.reason != "" || resp.SSIDs.length === 0) {
         throw new Error(resp.reason || "No Wi-Fi information returned.");
       }
+      if (resp.warning) measurementWarning = resp.warning;
       wifiStrengths.push(resp.SSIDs[0].signalStrength);
       displayStates.strength = arrayAverage(wifiStrengths).toString();
       checkForCancel();
@@ -230,7 +232,7 @@ export async function runSurveyTests(
     // Final update - type is "done"
     displayStates.type = "done";
     displayStates.header = "Measurement complete";
-    sendSSEMessage(getUpdatedMessage());
+    sendSSEMessage({ ...getUpdatedMessage(), status: measurementWarning });
 
     const strength = arrayAverage(wifiStrengths);
     const newWifiData: WifiResults = {

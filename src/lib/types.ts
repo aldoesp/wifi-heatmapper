@@ -208,6 +208,7 @@ export interface SurveyPointActions {
 export interface WifiScanResults {
   SSIDs: WifiResults[]; // potentially empty
   reason: string; // if noErr "", otherwise an explanation
+  warning?: string;
 }
 
 export interface WifiActions {

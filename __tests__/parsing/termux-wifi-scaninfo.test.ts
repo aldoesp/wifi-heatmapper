@@ -1,7 +1,12 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import fs from "fs";
 import path from "path";
-import { parseTermuxWifiScanInfo } from "../../src/lib/wifiScanner-termux";
+import * as serverUtils from "../../src/lib/server-utils";
+import type { PartialHeatmapSettings } from "../../src/lib/types";
+import {
+  parseTermuxWifiScanInfo,
+  TermuxWifiActions,
+} from "../../src/lib/wifiScanner-termux";
 
 test("parses and normalizes Termux Wi-Fi scan results", () => {
   const fixture = fs.readFileSync(
@@ -64,6 +69,50 @@ test("ignores records without a BSSID or numeric RSSI", () => {
   ]);
 
   expect(results).toEqual([]);
+});
+
+test("recognizes Android's placeholder BSSID as unavailable", () => {
+  const connection = {
+    ssid: "Connected network",
+    bssid: "02:00:00:00:00:00",
+    rssi: -48,
+  };
+
+  expect(parseTermuxWifiScanInfo(connection)).toEqual([]);
+  expect(parseTermuxWifiScanInfo(connection, true)[0]).toMatchObject({
+    ssid: "Connected network",
+    bssid: "",
+    rssi: -48,
+  });
+});
+
+test("warns when the connected Wi-Fi has no real BSSID", async () => {
+  vi.spyOn(serverUtils, "execAsync").mockResolvedValue({
+    stdout: JSON.stringify({
+      ssid: "Connected network",
+      bssid: "02:00:00:00:00:00",
+      rssi: -48,
+    }),
+    stderr: "",
+  });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+
+  try {
+    const result = await new TermuxWifiActions().getWifi(
+      {} as PartialHeatmapSettings,
+    );
+
+    expect(result.SSIDs[0]).toMatchObject({
+      ssid: "Connected network",
+      bssid: "",
+      rssi: -48,
+    });
+    expect(result.warning).toContain("did not provide a real Wi-Fi BSSID");
+    expect(result.reason).toBe("");
+  } finally {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  }
 });
 
 test("parses the single object returned by termux-wifi-connectioninfo", () => {

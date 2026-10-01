@@ -11,6 +11,7 @@ import {
   bySignalStrength,
   channelToBand,
   getDefaultWifiResults,
+  isValidMacAddress,
   normalizeMacAddress,
   rssiToPercentage,
 } from "./utils";
@@ -91,21 +92,31 @@ async function readAndroidTxLinkSpeed(): Promise<number | null> {
   }
 }
 
-export function parseTermuxWifiScanInfo(input: unknown): WifiResults[] {
+export function parseTermuxWifiScanInfo(
+  input: unknown,
+  keepMissingBssid = false,
+): WifiResults[] {
   return parseRecords(input)
     .flatMap((record) => {
       const bssid = typeof record.bssid === "string" ? record.bssid : "";
+      const normalizedBssid = isValidMacAddress(bssid)
+        ? normalizeMacAddress(bssid)
+        : "";
+      const realBssid =
+        normalizedBssid && normalizedBssid !== "020000000000"
+          ? normalizedBssid
+          : "";
       const rssi = asNumber(record.rssi);
       const frequencyMhz = asNumber(record.frequency_mhz);
       const centerFrequencyMhz = asNumber(record.center_frequency_mhz);
-      if (!bssid || rssi === null) return [];
+      if ((!realBssid && !keepMissingBssid) || rssi === null) return [];
 
       const channel =
         frequencyMhz === null ? 0 : (frequencyToChannel(frequencyMhz) ?? 0);
       const result: WifiResults = {
         ...getDefaultWifiResults(),
         ssid: typeof record.ssid === "string" ? record.ssid : "",
-        bssid: normalizeMacAddress(bssid),
+        bssid: realBssid,
         rssi,
         signalStrength: rssiToPercentage(rssi),
         channel,
@@ -169,11 +180,20 @@ export class TermuxWifiActions implements WifiActions {
   async getWifi(_settings: PartialHeatmapSettings): Promise<WifiScanResults> {
     try {
       const { stdout } = await execAsync("termux-wifi-connectioninfo");
-      const [current] = parseTermuxWifiScanInfo(stdout);
+      const [current] = parseTermuxWifiScanInfo(stdout, true);
       if (!current) return unsupported("No active Wi-Fi connection found.");
       current.currentSSID = true;
       current.txRate = (await readAndroidTxLinkSpeed()) ?? current.txRate;
-      return { SSIDs: [current], reason: "" };
+      return {
+        SSIDs: [current],
+        reason: "",
+        ...(current.bssid
+          ? {}
+          : {
+              warning:
+                "Android did not provide a real Wi-Fi BSSID. This measurement cannot be assigned to an access point.",
+            }),
+      };
     } catch (error) {
       return unsupported(`Cannot read the current Wi-Fi connection: ${error}`);
     }

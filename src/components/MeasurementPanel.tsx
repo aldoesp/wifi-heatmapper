@@ -16,7 +16,13 @@ interface MeasurementPanelProps {
   error?: string | null;
 }
 
-type Phase = "connecting" | "running" | "done" | "cancelled" | "error";
+type Phase =
+  | "connecting"
+  | "running"
+  | "done"
+  | "warning"
+  | "cancelled"
+  | "error";
 
 const DONE_AUTOCLOSE_MS = 2500;
 
@@ -64,7 +70,8 @@ export default function MeasurementPanel({
           setPhase(/cancel/i.test(data.header) ? "cancelled" : "error");
           setMessage(data.status);
         } else {
-          setPhase("done");
+          setPhase(data.status ? "warning" : "done");
+          if (data.status) setMessage(data.status);
         }
       }
     };
@@ -124,11 +131,16 @@ export default function MeasurementPanel({
         {phase === "done" && (
           <Check className="h-4 w-4 shrink-0 text-success" />
         )}
+        {phase === "warning" && (
+          <CircleAlert className="h-4 w-4 shrink-0 text-warning" />
+        )}
         {(phase === "error" || phase === "cancelled") && (
           <CircleAlert className="h-4 w-4 shrink-0 text-destructive" />
         )}
         <h3 className="truncate text-sm font-semibold">
-          {phase === "done" ? "Measurement saved" : header}
+          {phase === "done" || phase === "warning"
+            ? "Measurement saved"
+            : header}
         </h3>
         {!running && (
           <button
@@ -153,6 +165,10 @@ export default function MeasurementPanel({
           <dt className="text-muted-foreground">UDP down / up</dt>
           <dd className="truncate text-right font-medium">{fields.udp}</dd>
         </dl>
+      )}
+
+      {phase === "warning" && (
+        <p className="border-t px-4 py-3 text-sm text-warning">{message}</p>
       )}
 
       {running && (
