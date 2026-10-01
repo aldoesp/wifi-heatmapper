@@ -10,9 +10,7 @@ test("clicking the floor plan takes a measurement and stores it", async ({
 
   await measureAt(page, 0.3, 0.4);
   await expect(page.getByTestId("summary-points")).toContainText("1");
-  await expect(page.getByTestId("measurement-panel")).toContainText(
-    "Measurement saved",
-  );
+  await expect(page.getByTestId("measurement-panel")).toHaveCount(0);
 
   const survey = await readSurvey(
     page,
@@ -55,16 +53,48 @@ test("an unreachable iperf3 server still records the signal", async ({
   const name = await uploadFloorplan(page);
   await page.getByLabel("iperf3 server").fill("unreachable.local");
   await gotoTab(page, "floorplan");
-  await measureAt(page, 0.5, 0.5);
-  await expect(page.getByTestId("measurement-panel")).toContainText(
+  // The review area shows why throughput is missing, before saving the point
+  const canvas = page.getByTestId("floorplan-canvas");
+  await expect(canvas).toBeVisible();
+  const box = (await canvas.boundingBox())!;
+  await canvas.click({ position: { x: box.width * 0.5, y: box.height * 0.5 } });
+  const panel = page.getByTestId("measurement-panel");
+  await expect(panel).toHaveAttribute("data-phase", "done", {
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId("measurement-review")).toContainText(
     "Cannot connect to iperf3 server",
   );
+  await panel.getByTestId("measurement-save").click();
   const survey = await readSurvey(
     page,
     name,
     (s) => s.surveyPoints.length === 1,
   );
   expect(survey.surveyPoints[0].iperfData.tcpDownload.bitsPerSecond).toBe(0);
+});
+
+test("a measurement can be reviewed and discarded", async ({ page }) => {
+  const name = await uploadFloorplan(page);
+  await gotoTab(page, "floorplan");
+  const canvas = page.getByTestId("floorplan-canvas");
+  await expect(canvas).toBeVisible();
+  const box = (await canvas.boundingBox())!;
+  await canvas.click({ position: { x: box.width * 0.3, y: box.height * 0.3 } });
+  const panel = page.getByTestId("measurement-panel");
+  await expect(panel).toHaveAttribute("data-phase", "done", {
+    timeout: 30_000,
+  });
+  const review = page.getByTestId("measurement-review");
+  await expect(review).toBeVisible();
+  await expect(review).toContainText("Demo Network");
+  await review.hover();
+  await page.mouse.wheel(0, 200); // the details area scrolls
+  await panel.getByTestId("measurement-discard").click();
+  await expect(panel).toHaveCount(0);
+  await page.waitForTimeout(500);
+  const survey = await readSurvey(page, name);
+  expect(survey.surveyPoints).toHaveLength(0);
 });
 
 test("a measurement can be cancelled", async ({ page }) => {

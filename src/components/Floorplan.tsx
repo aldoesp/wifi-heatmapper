@@ -19,6 +19,7 @@ import {
 
 import { useSettings } from "./GlobalSettings";
 import { useAppStatus } from "@/hooks/useAppStatus";
+import type { IperfResults, WifiResults } from "@/lib/types";
 import MeasurementPanel from "@/components/MeasurementPanel";
 import PopupDetails from "@/components/PopupDetails";
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,15 @@ export default function ClickableFloorplan() {
   const [pending, setPending] = useState<XY | null>(null); // image coords
   const [panelOpen, setPanelOpen] = useState(false);
   const [measureError, setMeasureError] = useState<string | null>(null);
+  /** Values of the last measurement, waiting for the user to save or discard. */
+  const [measuredData, setMeasuredData] = useState<{
+    wifiData: WifiResults;
+    iperfData: IperfResults;
+    x: number;
+    y: number;
+  } | null>(null);
+  /** Bumped per measurement so the panel restarts clean for each run. */
+  const [runId, setRunId] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const measuring = pending !== null && panelOpen;
@@ -319,14 +329,12 @@ export default function ClickableFloorplan() {
       if (!data?.wifiData || !data?.iperfData) {
         throw new Error("The measurement returned no data.");
       }
-      surveyPointActions.add({
+      // Keep the values for review; the point is stored on confirmation
+      setMeasuredData({
         wifiData: data.wifiData,
         iperfData: data.iperfData,
         x,
         y,
-        timestamp: Date.now(),
-        isEnabled: true,
-        id: "", // assigned by the store
       });
       setPending(null);
     } catch (err) {
@@ -334,7 +342,7 @@ export default function ClickableFloorplan() {
       setPending(null);
       setMeasureError(err instanceof Error ? err.message : String(err));
     }
-  }, [pending, settings, surveyPointActions]);
+  }, [pending, settings]);
 
   const cancelMeasurement = () => {
     abortRef.current?.abort();
@@ -344,7 +352,23 @@ export default function ClickableFloorplan() {
   const closePanel = useCallback(() => {
     setPanelOpen(false);
     setMeasureError(null);
+    setMeasuredData(null);
   }, []);
+
+  /** Store the reviewed measurement at the measured location. */
+  const confirmMeasurement = () => {
+    if (!measuredData) return;
+    surveyPointActions.add({
+      wifiData: measuredData.wifiData,
+      iperfData: measuredData.iperfData,
+      x: measuredData.x,
+      y: measuredData.y,
+      timestamp: Date.now(),
+      isEnabled: true,
+      id: "", // assigned by the store
+    });
+    closePanel();
+  };
 
   /* ---------- interaction ---------- */
 
@@ -366,13 +390,17 @@ export default function ClickableFloorplan() {
     }
     if (measuring) return; // one at a time
     setMeasureError(null);
+    setMeasuredData(null); // drop any previous unconfirmed result
     setPending(pt);
+    setRunId((n) => n + 1); // restart the panel for the new run
     if (!isMobile) setPanelOpen(true);
   };
 
   const beginMobileScan = () => {
     if (!pending || measuring) return;
     setMeasureError(null);
+    setMeasuredData(null);
+    setRunId((n) => n + 1);
     setPanelOpen(true);
   };
 
@@ -685,9 +713,19 @@ export default function ClickableFloorplan() {
 
       {panelOpen && (
         <MeasurementPanel
+          key={runId}
           onReady={startMeasurement}
           onClose={closePanel}
           onCancel={cancelMeasurement}
+          onConfirm={confirmMeasurement}
+          result={measuredData}
+          apName={
+            measuredData
+              ? (settings.apMapping.find(
+                  (ap) => ap.macAddress === measuredData.wifiData.bssid,
+                )?.apName ?? null)
+              : null
+          }
           error={measureError}
         />
       )}

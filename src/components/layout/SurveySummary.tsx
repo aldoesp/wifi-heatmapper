@@ -45,7 +45,7 @@ export function SurveySummary({
   );
 
   return (
-    <div className="border-b bg-surface/60">
+    <div className="hidden border-b bg-surface/60 sm:block">
       <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-6 gap-y-0 px-4 sm:px-6">
         {item(
           "Floor plan",

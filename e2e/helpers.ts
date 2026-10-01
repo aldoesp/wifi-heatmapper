@@ -72,7 +72,7 @@ export async function gotoTab(
   await page.getByTestId(`tab-${tab}`).click();
 }
 
-/** Click an empty spot on the floor plan and wait for the mock measurement. */
+/** Click an empty spot on the floor plan and take a confirmed mock measurement. */
 export async function measureAt(page: Page, fx: number, fy: number) {
   const canvas = page.getByTestId("floorplan-canvas");
   await expect(canvas).toBeVisible();
@@ -83,6 +83,8 @@ export async function measureAt(page: Page, fx: number, fy: number) {
   await expect(panel).toHaveAttribute("data-phase", "done", {
     timeout: 30_000,
   });
+  await panel.getByTestId("measurement-save").click();
+  await expect(panel).toHaveCount(0);
 }
 
 type Survey = any;
@@ -107,7 +109,7 @@ export async function readSurvey(
         last = await res.json();
         return until(last);
       },
-      { timeout: 5_000 },
+      { timeout: 15_000 },
     )
     .toBe(true);
   return last;

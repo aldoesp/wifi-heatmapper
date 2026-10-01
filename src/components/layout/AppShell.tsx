@@ -170,14 +170,9 @@ export default function AppShell() {
         </div>
       )}
 
-      <div className="hidden sm:block">
-        <SurveySummary onNavigate={setTab} />
-      </div>
+      <SurveySummary onNavigate={setTab} />
 
       <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 sm:px-6 sm:py-6">
-        <div className="sm:hidden">
-          <SurveySummary onNavigate={setTab} />
-        </div>
         <div className="hidden sm:block">
           <WelcomePanel />
         </div>

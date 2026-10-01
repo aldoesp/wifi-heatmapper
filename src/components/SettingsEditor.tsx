@@ -2,6 +2,7 @@
 import { useSettings, DEFAULT_FLOORPLAN } from "@/components/GlobalSettings";
 import { FormRow, FormSection } from "./FormRow";
 import { NumberField } from "./NumberField";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import FloorplanPicker from "./MediaDropdown";
 import { GradientEditor } from "./GradientEditor";
@@ -57,6 +58,51 @@ export default function SettingsEditor() {
             pointCount={settings.surveyPoints.length}
             onChange={readNewSettingsFromFile}
             onDelete={deleteFloorplan}
+          />
+        </FormRow>
+      </FormSection>
+
+      <FormSection
+        title="Measurement"
+        description="What happens when you click the floor plan. Signal strength is always measured; throughput needs an iperf3 server."
+      >
+        <FormRow
+          id="iperfServer"
+          label="iperf3 server"
+          help="Address of a computer running `iperf3 -s`, e.g. 192.168.1.10 or 192.168.1.10:5201. Leave it at localhost to measure signal strength only."
+          hint={
+            settings.iperfServerAdrs === "localhost"
+              ? "Throughput tests are off. Only signal strength is measured."
+              : undefined
+          }
+        >
+          <Input
+            id="iperfServer"
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="localhost"
+            className="max-w-sm"
+            value={settings.iperfServerAdrs}
+            onChange={(e) =>
+              updateSettings({ iperfServerAdrs: e.target.value.trim() })
+            }
+          />
+        </FormRow>
+
+        <FormRow
+          id="testDuration"
+          label="Test duration (seconds)"
+          help="How long each of the four iperf3 tests runs. One second is enough for a survey; longer tests give steadier numbers."
+        >
+          <NumberField
+            id="testDuration"
+            min={1}
+            max={60}
+            step={1}
+            className="max-w-[8rem]"
+            value={settings.testDuration}
+            onChange={(n) => updateSettings({ testDuration: Math.round(n) })}
           />
         </FormRow>
       </FormSection>

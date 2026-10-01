@@ -28,8 +28,12 @@ test("uploading a duplicate name is refused", async ({ page }) => {
     mimeType: "image/png",
     buffer: makePng(100, 100),
   });
-  await expect(page.getByText("Upload failed")).toBeVisible();
-  await expect(page.getByText(/already exists/)).toBeVisible();
+  await expect(page.getByText("Upload failed", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(`A floor plan named "${name}" already exists.`, {
+      exact: true,
+    }),
+  ).toBeVisible();
 });
 
 test("settings persist across reloads", async ({ page }) => {
