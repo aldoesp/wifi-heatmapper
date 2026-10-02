@@ -87,13 +87,17 @@ test("recognizes Android's placeholder BSSID as unavailable", () => {
 });
 
 test("warns when the connected Wi-Fi has no real BSSID", async () => {
-  vi.spyOn(serverUtils, "execAsync").mockResolvedValue({
-    stdout: JSON.stringify({
-      ssid: "Connected network",
-      bssid: "02:00:00:00:00:00",
-      rssi: -48,
-    }),
-    stderr: "",
+  // the scan returns nothing: getWifi falls back to the connection info
+  vi.spyOn(serverUtils, "execAsync").mockImplementation(async (cmd) => {
+    if (String(cmd).includes("scaninfo")) return { stdout: "[]", stderr: "" };
+    return {
+      stdout: JSON.stringify({
+        ssid: "Connected network",
+        bssid: "02:00:00:00:00:00",
+        rssi: -48,
+      }),
+      stderr: "",
+    };
   });
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
 
@@ -109,6 +113,47 @@ test("warns when the connected Wi-Fi has no real BSSID", async () => {
     });
     expect(result.warning).toContain("did not provide a real Wi-Fi BSSID");
     expect(result.reason).toBe("");
+  } finally {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  }
+});
+
+test("getWifi takes the connected network from the scan, with rich fields", async () => {
+  const scanFixture = fs.readFileSync(
+    path.join(__dirname, "../data/termux-wifi-scaninfo.json"),
+    "utf-8",
+  );
+  vi.spyOn(serverUtils, "execAsync").mockImplementation(async (cmd) => {
+    if (String(cmd).includes("connectioninfo")) {
+      // only ssid/bssid/rssi: the point of the scan is to add the rest
+      return {
+        stdout: JSON.stringify({
+          ssid: "ZMTL_GUEST",
+          bssid: "9a:30:66:74:50:83",
+          rssi: -46,
+        }),
+        stderr: "",
+      };
+    }
+    return { stdout: scanFixture, stderr: "" };
+  });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+
+  try {
+    const result = await new TermuxWifiActions().getWifi(
+      {} as PartialHeatmapSettings,
+    );
+
+    expect(result.SSIDs[0]).toMatchObject({
+      ssid: "ZMTL_GUEST",
+      bssid: "9a3066745083",
+      currentSSID: true,
+      // these come from the scan record, not from the connection info
+      channelWidth: 80,
+      security: "WPA2 WPA3",
+      centerFrequencyMhz: 5210,
+    });
   } finally {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();

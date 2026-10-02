@@ -159,6 +159,28 @@ export class TermuxWifiActions implements WifiActions {
     try {
       const { stdout } = await execAsync("termux-wifi-scaninfo");
       const SSIDs = parseTermuxWifiScanInfo(stdout);
+      // Tag the network we are connected to: the strongest AP with the
+      // same SSID as the connection. getWifi() relies on this marker.
+      try {
+        const { stdout: conn } = await execAsync("termux-wifi-connectioninfo");
+        const records = parseRecords(conn);
+        const connSsid =
+          records.length && typeof records[0].ssid === "string"
+            ? records[0].ssid
+            : "";
+        const connBssid =
+          records.length && typeof records[0].bssid === "string"
+            ? normalizeMacAddress(records[0].bssid)
+            : "";
+        const match = SSIDs.find(
+          (n) =>
+            (connBssid && n.bssid === connBssid) ||
+            (connSsid !== "" && n.ssid === connSsid),
+        );
+        if (match) match.currentSSID = true;
+      } catch {
+        // connection info is optional here; the scan alone is still useful
+      }
       return {
         SSIDs,
         reason: SSIDs.length === 0 ? "No Wi-Fi networks found." : "",
@@ -179,15 +201,34 @@ export class TermuxWifiActions implements WifiActions {
 
   async getWifi(_settings: PartialHeatmapSettings): Promise<WifiScanResults> {
     try {
+      // Prefer the full scan: termux-wifi-scaninfo returns the connected
+      // network too, with richer fields (channel width, center frequency,
+      // capabilities) than termux-wifi-connectioninfo.
+      const scan = await this.scanWifi(_settings);
+      const scannedCurrent = scan.SSIDs.find((n) => n.currentSSID);
+      const fromScan = scan.SSIDs.find(
+        (n) => n.ssid !== "" && n.signalStrength > 0,
+      );
+      const current = scannedCurrent ?? fromScan;
+      if (current) {
+        current.currentSSID = true;
+        current.txRate = (await readAndroidTxLinkSpeed()) ?? current.txRate;
+        return {
+          SSIDs: [current],
+          reason: "",
+        };
+      }
+      // Fall back to the connection info, which works even when the scan
+      // API returns nothing (e.g. location services off).
       const { stdout } = await execAsync("termux-wifi-connectioninfo");
-      const [current] = parseTermuxWifiScanInfo(stdout, true);
-      if (!current) return unsupported("No active Wi-Fi connection found.");
-      current.currentSSID = true;
-      current.txRate = (await readAndroidTxLinkSpeed()) ?? current.txRate;
+      const [fallback] = parseTermuxWifiScanInfo(stdout, true);
+      if (!fallback) return unsupported("No active Wi-Fi connection found.");
+      fallback.currentSSID = true;
+      fallback.txRate = (await readAndroidTxLinkSpeed()) ?? fallback.txRate;
       return {
-        SSIDs: [current],
+        SSIDs: [fallback],
         reason: "",
-        ...(current.bssid
+        ...(fallback.bssid
           ? {}
           : {
               warning:

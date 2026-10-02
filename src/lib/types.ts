@@ -151,6 +151,9 @@ export type SurveyPoint = {
   y: number;
   wifiData: WifiResults;
   iperfData: IperfResults;
+  /** Every network seen in the scan for this point, strongest first.
+   *  Optional: points recorded before this was collected do not have it. */
+  networks?: WifiResults[];
   timestamp: number;
   id: string;
   isEnabled: boolean;

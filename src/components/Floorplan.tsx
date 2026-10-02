@@ -363,6 +363,10 @@ export default function ClickableFloorplan() {
     surveyPointActions.add({
       wifiData: measuredData.wifiData,
       iperfData: measuredData.iperfData,
+      // keep the whole scan with the point for later analysis
+      ...(measuredData.networks?.length
+        ? { networks: measuredData.networks }
+        : {}),
       x: measuredData.x,
       y: measuredData.y,
       timestamp: Date.now(),
