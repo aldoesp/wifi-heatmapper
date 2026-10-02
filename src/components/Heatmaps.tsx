@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, Network, Radio } from "lucide-react";
 import {
   SurveyPoint,
+  WifiResults,
   testProperties,
   MeasurementTestType,
   testTypes,
@@ -80,14 +81,27 @@ const ALL_NETWORKS = "";
 /** Value of the access point picker: "" shows every BSSID. */
 const ALL_ACCESS_POINTS = "";
 
-/** Group enabled points by SSID (empty SSIDs are bucketed under ""). */
+/**
+ * Wi-Fi readings usable for a point.  `wifiData` is kept first because it is
+ * the measurement taken for the point (and can have an averaged RSSI); scans
+ * add the other BSSIDs visible from that position.  A BSSID is represented
+ * only once when scanners happen to report it twice.
+ */
+export const wifiReadingsAtPoint = (point: SurveyPoint): WifiResults[] => {
+  const readings = [point.wifiData, ...(point.networks ?? [])];
+  return [...new Map(readings.map((wifi) => [wifi.bssid, wifi])).values()];
+};
+
 export const networkChoices = (
   points: SurveyPoint[],
 ): { ssid: string; count: number }[] => {
   const counts = new Map<string, number>();
   for (const p of points) {
-    const ssid = p.wifiData?.ssid ?? "";
-    counts.set(ssid, (counts.get(ssid) ?? 0) + 1);
+    for (const ssid of new Set(
+      wifiReadingsAtPoint(p).map((wifi) => wifi.ssid),
+    )) {
+      counts.set(ssid, (counts.get(ssid) ?? 0) + 1);
+    }
   }
   return [...counts.entries()]
     .map(([ssid, count]) => ({ ssid, count }))
@@ -105,8 +119,9 @@ export const accessPointChoices = (
 ): { bssid: string; count: number }[] => {
   const counts = new Map<string, number>();
   for (const p of points) {
-    const bssid = p.wifiData?.bssid ?? "";
-    counts.set(bssid, (counts.get(bssid) ?? 0) + 1);
+    for (const bssid of wifiReadingsAtPoint(p).map((wifi) => wifi.bssid)) {
+      counts.set(bssid, (counts.get(bssid) ?? 0) + 1);
+    }
   }
   return [...counts.entries()]
     .map(([bssid, count]) => ({ bssid, count }))
@@ -116,6 +131,35 @@ export const accessPointChoices = (
         b.count - a.count ||
         a.bssid.localeCompare(b.bssid),
     );
+};
+
+type HeatmapSample = { point: SurveyPoint; wifi: WifiResults };
+
+/**
+ * Pick the Wi-Fi reading that matches the filters at a survey point.  With no
+ * filters, retain the actual measurement; with an SSID-only filter, use the
+ * strongest matching BSSID so one point contributes one signal value.
+ */
+export const sampleAtPoint = (
+  point: SurveyPoint,
+  network: string,
+  accessPoint: string,
+): HeatmapSample | null => {
+  if (network === ALL_NETWORKS && accessPoint === ALL_ACCESS_POINTS) {
+    return { point, wifi: point.wifiData };
+  }
+  const matches = wifiReadingsAtPoint(point).filter(
+    (wifi) =>
+      (network === ALL_NETWORKS || wifi.ssid === network) &&
+      (accessPoint === ALL_ACCESS_POINTS || wifi.bssid === accessPoint),
+  );
+  if (matches.length === 0) return null;
+  return {
+    point,
+    wifi: matches.reduce((strongest, wifi) =>
+      wifi.signalStrength > strongest.signalStrength ? wifi : strongest,
+    ),
+  };
 };
 
 /**
@@ -150,19 +194,17 @@ export function Heatmaps() {
     () => accessPointChoices(points.filter((p) => p.isEnabled)),
     [points],
   );
-  const filteredPoints = useMemo(
+  const filteredSamples = useMemo(
     () =>
-      points.filter(
-        (p) =>
-          (network === ALL_NETWORKS || (p.wifiData?.ssid ?? "") === network) &&
-          (accessPoint === ALL_ACCESS_POINTS ||
-            (p.wifiData?.bssid ?? "") === accessPoint),
-      ),
+      points
+        .filter((p) => p.isEnabled)
+        .map((point) => sampleAtPoint(point, network, accessPoint))
+        .filter((sample): sample is HeatmapSample => sample !== null),
     [points, network, accessPoint],
   );
   const enabledPoints = useMemo(
-    () => filteredPoints.filter((p) => p.isEnabled),
-    [filteredPoints],
+    () => filteredSamples.map((sample) => sample.point),
+    [filteredSamples],
   );
 
   const autoRadius = Math.round(calculateRadiusByBoundingBox(enabledPoints));
@@ -180,12 +222,13 @@ export function Heatmaps() {
   const getMetricValue = useCallback(
     (
       point: SurveyPoint,
+      wifi: WifiResults,
       metric: MeasurementTestType,
       property?: keyof IperfTestProperty,
     ): number | null => {
       if (metric === "signalStrength") {
         // the map is always drawn in %, the legend may show dBm
-        return point.wifiData.signalStrength;
+        return wifi.signalStrength;
       }
       const test = point.iperfData?.[metric];
       if (!test || test.bitsPerSecond === 0) return null; // test not run
@@ -197,15 +240,15 @@ export function Heatmaps() {
 
   const generateHeatmapData = useCallback(
     (metric: MeasurementTestType, property?: keyof IperfTestProperty) =>
-      enabledPoints
-        .map((p) => {
-          const value = getMetricValue(p, metric, property);
-          return value === null ? null : { x: p.x, y: p.y, value };
+      filteredSamples
+        .map(({ point, wifi }) => {
+          const value = getMetricValue(point, wifi, metric, property);
+          return value === null ? null : { x: point.x, y: point.y, value };
         })
         .filter(
           (v): v is { x: number; y: number; value: number } => v !== null,
         ),
-    [enabledPoints, getMetricValue],
+    [filteredSamples, getMetricValue],
   );
 
   /* ---------- drawing ---------- */
@@ -664,8 +707,8 @@ export function Heatmaps() {
           )}
 
           <p className="text-xs text-muted-foreground">
-            {enabledPoints.length} of {filteredPoints.length} point
-            {filteredPoints.length === 1 ? "" : "s"} used
+            {enabledPoints.length} point{enabledPoints.length === 1 ? "" : "s"}{" "}
+            used
             {rendering ? ", rendering" : ""}
           </p>
         </aside>
